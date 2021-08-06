@@ -114,8 +114,12 @@ type logger struct {
 const flags = log.Lmsgprefix | log.LUTC | log.Ldate | log.Ltime | log.Lshortfile
 
 var (
-	global *logger = newLogger(logLevelFromEnv(), os.Stderr)
+	global *logger
 )
+
+func init() {
+	global = newLogger(logLevelFromEnv(), os.Stderr)
+}
 
 func logLevelFromEnv() int {
 	loglevel, defined := os.LookupEnv("CONFIG_LOGGER_LEVEL")

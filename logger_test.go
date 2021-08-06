@@ -23,7 +23,7 @@ func testLogger(loglevel string, logf func(format string, v ...interface{})) boo
 	logger.Config(loglevel, &buf)
 	logf("foobar %d", 1)
 
-	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:16: ."+loglevel+". foobar 1", buf.Bytes())
+	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:24: ."+loglevel+". foobar 1", buf.Bytes())
 
 	return matched
 }
@@ -113,7 +113,7 @@ func testLoggerWith(loglevel string, logf func(format string, v ...interface{}))
 	logger.Config(loglevel, &buf)
 	logf("foobar %d", 1)
 
-	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:106: ."+loglevel+". foobar 1 \\{[^}]+\\}", buf.Bytes())
+	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:114: ."+loglevel+". foobar 1 \\{[^}]+\\}", buf.Bytes())
 
 	return matched
 }
