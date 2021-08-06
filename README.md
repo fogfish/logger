@@ -32,19 +32,20 @@
 
 ---
 
-logger is a simples utility for Golang application. The library implements finer grained logging level, outputs event stream to standard I/O including logging to AWS CloudWatch in the context of serverless applications.   
+logger is a simple logging utility for Golang application. The library implements finer grained logging level, outputs log messages to standard streams. Easy to use for serverless application development (e.g. logging to AWS CloudWatch).
+
 
 ## Inspiration
 
-The library outputs log message in the well-defined format, using UTC date and times and giving ability to annotate the message with JSON context. The logger always output filename and line of the log statement to facilitate further analysis
+The library outputs log messages in the well-defined format, using UTC date and times and giving ability to annotate the message with JSON context. The logger always output filename and line of the log statement to facilitate further analysis
 
 ```
-2020/12/01 20:30:40 main.go:11: [level] message {"json": "context"}
+2020/12/01 20:30:40 main.go:11: [level] some message {"json": "context"}
 ```
 
 It inherits best practices of telecom application and defines 7 levels of fine grained logging:
 
-1. `emergency`: system is unusable, panic execution of current routine/application, it is not possible to gracefully terminate it.
+1. `emergency`: system is unusable, panic execution of current routine or application, it is not possible to gracefully terminate it.
 2. `critical`: system is failed, response actions must be taken immediately, the application is not able to execute correctly but still able to gracefully exit.
 3. `error`: system is failed, unable to recover from error. The failure do not have global catastrophic impacts but local functionality is impaired, incorrect result is returned.
 4. `warning`: system is failed, unable to recover, degraded functionality. The failure is ignored and application still capable to deliver incomplete but correct results.
@@ -100,7 +101,7 @@ logger.With(logger.Note{
 
 ### AWS CloudWatch
 
-The logger output events in the format compatible with AWS CloudWatch: each log message corresponds to single CloudWatch event. Therefore, it simplify logging in AWS Lambda functions. Use the logger together with CloudWatch Insight (e.g. utility [awslog](https://github.com/fogfish/awslog)) for the deep analysis
+The logger output events in the format compatible with AWS CloudWatch: each log message corresponds to single CloudWatch event. Therefore, it simplify logging in AWS Lambda functions. Use the logger together with CloudWatch Insight (e.g. utility [awslog](https://github.com/fogfish/awslog)) for the deep analysis. For example, search events with logs insight queries:
 
 ```
 fields @timestamp, @message
@@ -135,7 +136,7 @@ The commit message helps us to write a good release note, speed-up review proces
 
 ### bugs
 
-If you experience any issues with the library, please let us know via [GitHub issues](https://github.com/fogfish/geojson/issue). We appreciate detailed and accurate reports that help us to identity and replicate the issue. 
+If you experience any issues with the library, please let us know via [GitHub issues](https://github.com/fogfish/logger/issue). We appreciate detailed and accurate reports that help us to identity and replicate the issue. 
 
 
 ## License
