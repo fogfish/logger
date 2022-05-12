@@ -17,7 +17,7 @@ import (
 	"github.com/fogfish/logger"
 )
 
-func testLogger(loglevel string, logf func(format string, v ...interface{})) bool {
+func testLogger(loglevel string, logf func(format string, v ...interface{}) error) bool {
 	var buf bytes.Buffer
 
 	logger.Config(loglevel, &buf)
@@ -38,7 +38,7 @@ func TestGlobalLogger(t *testing.T) {
 		IfTrue(testLogger(logger.DEBUG, logger.Debug))
 }
 
-func testLoggerSilent(loglevel string, logf func(format string, v ...interface{})) bool {
+func testLoggerSilent(loglevel string, logf func(format string, v ...interface{}) error) bool {
 	var buf bytes.Buffer
 
 	logger.Config(loglevel, &buf)
@@ -107,7 +107,7 @@ func TestGlobalLoggerSilentCritical(t *testing.T) {
 		IfTrue(testLoggerSilent(logger.EMERGENCY, logger.Debug))
 }
 
-func testLoggerWith(loglevel string, logf func(format string, v ...interface{})) bool {
+func testLoggerWith(loglevel string, logf func(format string, v ...interface{}) error) bool {
 	var buf bytes.Buffer
 
 	logger.Config(loglevel, &buf)
