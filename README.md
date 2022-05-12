@@ -40,7 +40,8 @@ logger is a simple logging utility for Golang application. The library implement
 The library outputs log messages in the well-defined format, using UTC date and times and giving ability to annotate the message with JSON context. The logger always output filename and line of the log statement to facilitate further analysis
 
 ```
-2020/12/01 20:30:40 main.go:11: [level] some message {"json": "context"}
+2020/12/01 20:30:40 main.go:11: [level] some message
+2020/12/01 20:30:40 main.go:11: [level] {"json": "context", "message": "some message"}
 ```
 
 It inherits best practices of telecom application and defines 7 levels of fine grained logging:
@@ -90,13 +91,13 @@ Often, it is usable to annotate log messages with semi-structured data (e.g. JSO
 
 Outputs
 
-2020/12/01 20:30:40 main.go:11: [level] some message {"foo": "bar", "bar": 1}
+2020/12/01 20:30:40 main.go:11: [level] { "foo": "bar", "bar": 1, "message": "some message" }
 
 */
 logger.With(logger.Note{
   "foo": "bar",
   "bar": 1
-}).Warning("Some message")
+}).Warning("some message")
 ```
 
 ### AWS CloudWatch

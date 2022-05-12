@@ -113,7 +113,7 @@ func testLoggerWith(loglevel string, logf func(format string, v ...interface{}))
 	logger.Config(loglevel, &buf)
 	logf("foobar %d", 1)
 
-	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:114: ."+loglevel+". foobar 1 \\{[^}]+\\}", buf.Bytes())
+	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:114: ."+loglevel+". \\{[^}]+\"message\": \"foobar 1\" \\}", buf.Bytes())
 
 	return matched
 }
@@ -131,4 +131,20 @@ func TestLoggerWith(t *testing.T) {
 		IfTrue(testLoggerWith(logger.NOTICE, l.Notice)).
 		IfTrue(testLoggerWith(logger.INFO, l.Info)).
 		IfTrue(testLoggerWith(logger.DEBUG, l.Debug))
+}
+
+func TestLoggerWithMultiple(t *testing.T) {
+	a := logger.With(logger.Note{"foo": "bar"})
+	b := a.With(logger.Note{"bar": 1})
+
+	var buf bytes.Buffer
+	logger.Config(logger.DEBUG, &buf)
+
+	b.Debug("some text")
+	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:143: .debug. \\{ \"foo\": \"bar\", \"bar\": 1, \"message\": \"some text\" \\}", buf.Bytes())
+	it.Ok(t).IfTrue(matched)
+
+	a.Debug("some text")
+	matched, _ = regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:147: .debug. \\{ \"foo\": \"bar\", \"message\": \"some text\" \\}", buf.Bytes())
+	it.Ok(t).IfTrue(matched)
 }
