@@ -29,47 +29,50 @@ import (
 Logger interface defines finer grained log levels.
 */
 type Logger interface {
+	// build new logger with context
+	With(Note) Logger
+
 	/*
 		system is unusable, panic execution of current routine/application,
 		it is notpossible to gracefully terminate it.
 	*/
-	Emergency(format string, v ...interface{})
+	Emergency(format string, v ...interface{}) error
 
 	/*
 		system is failed, response actions must be taken immediately,
 		the application is not able to execute correctly but still
 		able to gracefully exit.
 	*/
-	Critical(format string, v ...interface{})
+	Critical(format string, v ...interface{}) error
 
 	/*
 		system is failed, unable to recover from error.
 		The failure do not have global catastrophic impacts but
 		local functionality is impaired, incorrect result is returned.
 	*/
-	Error(format string, v ...interface{})
+	Error(format string, v ...interface{}) error
 
 	/*
 		system is failed, unable to recover, degraded functionality.
 		The failure is ignored and application still capable to deliver
 		incomplete but correct results.
 	*/
-	Warning(format string, v ...interface{})
+	Warning(format string, v ...interface{}) error
 
 	/*
 		system is failed, error is recovered, no impact
 	*/
-	Notice(format string, v ...interface{})
+	Notice(format string, v ...interface{}) error
 
 	/*
 		output informative status about system
 	*/
-	Info(format string, v ...interface{})
+	Info(format string, v ...interface{}) error
 
 	/*
 		output debug status about system
 	*/
-	Debug(format string, v ...interface{})
+	Debug(format string, v ...interface{}) error
 }
 
 /*
@@ -190,12 +193,15 @@ Emergency logging:
 system is unusable, panic execution of current routine/application,
 it is notpossible to gracefully terminate it.
 */
-func Emergency(format string, v ...interface{}) {
+func Emergency(format string, v ...interface{}) error {
 	if global.emergency != nil {
-		global.emergency.Output(2, fmt.Sprintf(format, v...))
+		if err := global.emergency.Output(2, fmt.Sprintf(format, v...)); err != nil {
+			return err
+		}
 		panic(fmt.Errorf(format, v...))
 	}
 
+	return nil
 }
 
 /*
@@ -205,10 +211,12 @@ system is failed, response actions must be taken immediately,
 the application is not able to execute correctly but still
 able to gracefully exit.
 */
-func Critical(format string, v ...interface{}) {
+func Critical(format string, v ...interface{}) error {
 	if global.critical != nil {
-		global.critical.Output(2, fmt.Sprintf(format, v...))
+		return global.critical.Output(2, fmt.Sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -218,10 +226,12 @@ system is failed, unable to recover from error.
 The failure do not have global catastrophic impacts but
 local functionality is impaired, incorrect result is returned.
 */
-func Error(format string, v ...interface{}) {
+func Error(format string, v ...interface{}) error {
 	if global.err != nil {
-		global.err.Output(2, fmt.Sprintf(format, v...))
+		return global.err.Output(2, fmt.Sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -231,10 +241,12 @@ system is failed, unable to recover, degraded functionality.
 The failure is ignored and application still capable to deliver
 incomplete but correct results.
 */
-func Warning(format string, v ...interface{}) {
+func Warning(format string, v ...interface{}) error {
 	if global.warning != nil {
-		global.warning.Output(2, fmt.Sprintf(format, v...))
+		return global.warning.Output(2, fmt.Sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -242,10 +254,12 @@ func Warning(format string, v ...interface{}) {
 Notice logging:
 system is failed, error is recovered, no impact
 */
-func Notice(format string, v ...interface{}) {
+func Notice(format string, v ...interface{}) error {
 	if global.notice != nil {
-		global.notice.Output(2, fmt.Sprintf(format, v...))
+		return global.notice.Output(2, fmt.Sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -253,10 +267,12 @@ func Notice(format string, v ...interface{}) {
 Info logging:
 output informative status about system
 */
-func Info(format string, v ...interface{}) {
+func Info(format string, v ...interface{}) error {
 	if global.info != nil {
-		global.info.Output(2, fmt.Sprintf(format, v...))
+		return global.info.Output(2, fmt.Sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -264,10 +280,12 @@ func Info(format string, v ...interface{}) {
 Debug logging:
 output debug status about system
 */
-func Debug(format string, v ...interface{}) {
+func Debug(format string, v ...interface{}) error {
 	if global.debug != nil {
-		global.debug.Output(2, fmt.Sprintf(format, v...))
+		return global.debug.Output(2, fmt.Sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -289,8 +307,44 @@ type context struct {
 }
 
 func newContext(note Note) Logger {
-	data, _ := json.Marshal(note)
-	return &context{note: " " + string(data)}
+	return &context{note: toJSON(note)}
+}
+
+func toJSON(note Note) string {
+	var out strings.Builder
+
+	for key, val := range note {
+		out.WriteString(", ")
+		k, _ := json.Marshal(key)
+		out.Write(k)
+		out.WriteString(": ")
+		v, _ := json.Marshal(val)
+		out.Write(v)
+	}
+
+	return out.String()[2:]
+}
+
+func (log *context) With(note Note) Logger {
+	if len(log.note) != 0 {
+		return &context{note: log.note + ", " + toJSON(note)}
+	}
+
+	return &context{note: toJSON(note)}
+}
+
+func (log *context) sprintf(format string, v ...interface{}) string {
+	if len(log.note) == 0 {
+		return fmt.Sprintf(format, v...)
+	} else {
+		var out strings.Builder
+		out.WriteString("{ ")
+		out.WriteString(log.note)
+		out.WriteString(", \"message\": \"")
+		out.WriteString(fmt.Sprintf(format, v...))
+		out.WriteString("\" }")
+		return out.String()
+	}
 }
 
 /*
@@ -299,11 +353,15 @@ Emergency logging:
 system is unusable, panic execution of current routine/application,
 it is notpossible to gracefully terminate it.
 */
-func (log *context) Emergency(format string, v ...interface{}) {
+func (log *context) Emergency(format string, v ...interface{}) error {
 	if global.emergency != nil {
-		global.emergency.Output(2, fmt.Sprintf(format, v...)+log.note)
+		if err := global.emergency.Output(2, log.sprintf(format, v...)); err != nil {
+			return nil
+		}
 		panic(fmt.Errorf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -313,10 +371,12 @@ system is failed, response actions must be taken immediately,
 the application is not able to execute correctly but still
 able to gracefully exit.
 */
-func (log *context) Critical(format string, v ...interface{}) {
+func (log *context) Critical(format string, v ...interface{}) error {
 	if global.critical != nil {
-		global.critical.Output(2, fmt.Sprintf(format, v...)+log.note)
+		return global.critical.Output(2, log.sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -326,10 +386,12 @@ system is failed, unable to recover from error.
 The failure do not have global catastrophic impacts but
 local functionality is impaired, incorrect result is returned.
 */
-func (log *context) Error(format string, v ...interface{}) {
+func (log *context) Error(format string, v ...interface{}) error {
 	if global.err != nil {
-		global.err.Output(2, fmt.Sprintf(format, v...)+log.note)
+		return global.err.Output(2, log.sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -339,10 +401,12 @@ system is failed, unable to recover, degraded functionality.
 The failure is ignored and application still capable to deliver
 incomplete but correct results.
 */
-func (log *context) Warning(format string, v ...interface{}) {
+func (log *context) Warning(format string, v ...interface{}) error {
 	if global.warning != nil {
-		global.warning.Output(2, fmt.Sprintf(format, v...)+log.note)
+		return global.warning.Output(2, log.sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -350,10 +414,12 @@ func (log *context) Warning(format string, v ...interface{}) {
 Notice logging:
 system is failed, error is recovered, no impact.
 */
-func (log *context) Notice(format string, v ...interface{}) {
+func (log *context) Notice(format string, v ...interface{}) error {
 	if global.notice != nil {
-		global.notice.Output(2, fmt.Sprintf(format, v...)+log.note)
+		return global.notice.Output(2, log.sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -361,10 +427,12 @@ func (log *context) Notice(format string, v ...interface{}) {
 Info logging:
 output informative status about system
 */
-func (log *context) Info(format string, v ...interface{}) {
+func (log *context) Info(format string, v ...interface{}) error {
 	if global.info != nil {
-		global.info.Output(2, fmt.Sprintf(format, v...)+log.note)
+		return global.info.Output(2, log.sprintf(format, v...))
 	}
+
+	return nil
 }
 
 /*
@@ -372,8 +440,10 @@ func (log *context) Info(format string, v ...interface{}) {
 Debug logging:
 output debug status about system
 */
-func (log *context) Debug(format string, v ...interface{}) {
+func (log *context) Debug(format string, v ...interface{}) error {
 	if global.debug != nil {
-		global.debug.Output(2, fmt.Sprintf(format, v...)+log.note)
+		return global.debug.Output(2, log.sprintf(format, v...))
 	}
+
+	return nil
 }
