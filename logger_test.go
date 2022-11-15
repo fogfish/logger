@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/fogfish/it"
-	"github.com/fogfish/logger"
+	"github.com/fogfish/logger/v2"
 )
 
 func testLogger(loglevel string, logf func(seq ...logger.Message) error) bool {

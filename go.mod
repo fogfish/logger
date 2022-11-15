@@ -1,4 +1,4 @@
-module github.com/fogfish/logger
+module github.com/fogfish/logger/v2
 
 go 1.19
 
