@@ -6,79 +6,22 @@
 // https://github.com/fogfish/logger
 //
 
-/*
-
-Package logger outputs log message in the well-defined format,
-using UTC date and times.
-
-  2020/12/01 20:30:40 main.go:11: [level] message {"json": "context"}
-*/
+// Package logger outputs log message as JSON in the well-defined format,
+// using UTC date and times.
+//
+//	2020/12/01 20:30:40 main.go:11: [level] {"lvl": "level", "json": "context", "msg": "some text"}
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
-/*
-
-Logger interface defines finer grained log levels.
-*/
-type Logger interface {
-	// build new logger with context
-	With(Note) Logger
-
-	/*
-		system is unusable, panic execution of current routine/application,
-		it is notpossible to gracefully terminate it.
-	*/
-	Emergency(format string, v ...interface{}) error
-
-	/*
-		system is failed, response actions must be taken immediately,
-		the application is not able to execute correctly but still
-		able to gracefully exit.
-	*/
-	Critical(format string, v ...interface{}) error
-
-	/*
-		system is failed, unable to recover from error.
-		The failure do not have global catastrophic impacts but
-		local functionality is impaired, incorrect result is returned.
-	*/
-	Error(format string, v ...interface{}) error
-
-	/*
-		system is failed, unable to recover, degraded functionality.
-		The failure is ignored and application still capable to deliver
-		incomplete but correct results.
-	*/
-	Warning(format string, v ...interface{}) error
-
-	/*
-		system is failed, error is recovered, no impact
-	*/
-	Notice(format string, v ...interface{}) error
-
-	/*
-		output informative status about system
-	*/
-	Info(format string, v ...interface{}) error
-
-	/*
-		output debug status about system
-	*/
-	Debug(format string, v ...interface{}) error
-}
-
-/*
-
-LogLevel constants
-*/
+// LogLevel constants
 const (
 	lEMERGENCY = iota
 	lCRITICAL
@@ -89,18 +32,25 @@ const (
 	lDEBUG
 )
 
-/*
-
-LogLevel constants
-*/
+// LogLevel constants
 const (
-	EMERGENCY = "emergency"
-	CRITICAL  = "critical"
-	ERROR     = "error"
-	WARNING   = "warning"
-	NOTICE    = "notice"
-	INFO      = "info"
-	DEBUG     = "debug"
+	EMERGENCY = "emergency" // EMR
+	CRITICAL  = "critical"  // CRT
+	ERROR     = "error"     // ERR
+	WARNING   = "warning"   // WRN
+	NOTICE    = "notice"    // NTC
+	INFO      = "info"      // INF
+	DEBUG     = "debug"     // DEB
+)
+
+const (
+	EMR = "emr"
+	CRT = "crt"
+	ERR = "err"
+	WRN = "wrn"
+	NTC = "ntc"
+	INF = "inf"
+	DEB = "deb"
 )
 
 // logger instance is ensemble of multiple standard loggers, each per log level
@@ -140,18 +90,23 @@ func logLevelFromEnv() int {
 	return lDEBUG
 }
 
-/*
-
-Config logger, the configuration support
-* definition of log level using string constant
-* output destination
-
-  logger.Config("WARNING", os.Stderr)
-	logger.Config(os.Getenv("CONFIG_LOG_LEVEL"), os.Stderr)
-*/
+// Config logger, the configuration support
+// - definition of log level using string constant
+// - output destination
+//
+//	  logger.Config("WARNING", os.Stderr)
+//		logger.Config(os.Getenv("CONFIG_LOG_LEVEL"), os.Stderr)
 func Config(loglevel string, out io.Writer) {
-	seq := [...]string{EMERGENCY, CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG}
-	for level, name := range seq {
+	long := [...]string{EMERGENCY, CRITICAL, ERROR, WARNING, NOTICE, INFO, DEBUG}
+	for level, name := range long {
+		if strings.ToLower(loglevel) == name {
+			global = newLogger(level, out)
+			return
+		}
+	}
+
+	short := [...]string{EMR, CRT, ERR, WRN, NTC, INF, DEB}
+	for level, name := range short {
 		if strings.ToLower(loglevel) == name {
 			global = newLogger(level, out)
 			return
@@ -164,286 +119,198 @@ func newLogger(loglevel int, out io.Writer) *logger {
 
 	switch loglevel {
 	case lDEBUG:
-		l.debug = log.New(out, "["+DEBUG+"] ", flags)
+		l.debug = log.New(out, "["+DEB+"] ", flags)
 		fallthrough
 	case lINFO:
-		l.info = log.New(out, "["+INFO+"] ", flags)
+		l.info = log.New(out, "["+INF+"] ", flags)
 		fallthrough
 	case lNOTICE:
-		l.notice = log.New(out, "["+NOTICE+"] ", flags)
+		l.notice = log.New(out, "["+NTC+"] ", flags)
 		fallthrough
 	case lWARNING:
-		l.warning = log.New(out, "["+WARNING+"] ", flags)
+		l.warning = log.New(out, "["+WRN+"] ", flags)
 		fallthrough
 	case lERROR:
-		l.err = log.New(out, "["+ERROR+"] ", flags)
+		l.err = log.New(out, "["+ERR+"] ", flags)
 		fallthrough
 	case lCRITICAL:
-		l.critical = log.New(out, "["+CRITICAL+"] ", flags)
+		l.critical = log.New(out, "["+CRT+"] ", flags)
 		fallthrough
 	case lEMERGENCY:
-		l.emergency = log.New(out, "["+EMERGENCY+"] ", flags)
+		l.emergency = log.New(out, "["+EMR+"] ", flags)
 	}
 	return l
 }
 
-/*
-
-Emergency logging:
-system is unusable, panic execution of current routine/application,
-it is notpossible to gracefully terminate it.
-*/
-func Emergency(format string, v ...interface{}) error {
+// Emergency logging:
+//
+// system is unusable, panic execution of current routine/application,
+// it is notpossible to gracefully terminate it.
+func Emergency(seq ...Message) error {
 	if global.emergency != nil {
-		if err := global.emergency.Output(2, fmt.Sprintf(format, v...)); err != nil {
+		msg := Messages(seq).toString(EMERGENCY)
+		if err := global.emergency.Output(2, msg); err != nil {
 			return err
 		}
-		panic(fmt.Errorf(format, v...))
+		panic(msg)
 	}
 
 	return nil
 }
 
-/*
-
-Critical logging:
-system is failed, response actions must be taken immediately,
-the application is not able to execute correctly but still
-able to gracefully exit.
-*/
-func Critical(format string, v ...interface{}) error {
+// Critical logging:
+//
+// system is failed, response actions must be taken immediately,
+// the application is not able to execute correctly but still
+// able to gracefully exit.
+func Critical(seq ...Message) error {
 	if global.critical != nil {
-		return global.critical.Output(2, fmt.Sprintf(format, v...))
+		return global.critical.Output(2, Messages(seq).toString(CRT))
 	}
 
 	return nil
 }
 
-/*
-
-Error logging:
-system is failed, unable to recover from error.
-The failure do not have global catastrophic impacts but
-local functionality is impaired, incorrect result is returned.
-*/
-func Error(format string, v ...interface{}) error {
+// Error logging:
+//
+// system is failed, unable to recover from error.
+// The failure do not have global catastrophic impacts but
+// local functionality is impaired, incorrect result is returned.
+func Error(seq ...Message) error {
 	if global.err != nil {
-		return global.err.Output(2, fmt.Sprintf(format, v...))
+		return global.err.Output(2, Messages(seq).toString(ERR))
 	}
 
 	return nil
 }
 
-/*
-
-Warning logging:
-system is failed, unable to recover, degraded functionality.
-The failure is ignored and application still capable to deliver
-incomplete but correct results.
-*/
-func Warning(format string, v ...interface{}) error {
+// Warning logging:
+//
+// system is failed, unable to recover, degraded functionality.
+// The failure is ignored and application still capable to deliver
+// incomplete but correct results.
+func Warning(seq ...Message) error {
 	if global.warning != nil {
-		return global.warning.Output(2, fmt.Sprintf(format, v...))
+		return global.warning.Output(2, Messages(seq).toString(WRN))
 	}
 
 	return nil
 }
 
-/*
-
-Notice logging:
-system is failed, error is recovered, no impact
-*/
-func Notice(format string, v ...interface{}) error {
+// Notice logging:
+//
+// system is failed, error is recovered, no impact
+func Notice(seq ...Message) error {
 	if global.notice != nil {
-		return global.notice.Output(2, fmt.Sprintf(format, v...))
+		return global.notice.Output(2, Messages(seq).toString(NTC))
 	}
 
 	return nil
 }
 
-/*
-
-Info logging:
-output informative status about system
-*/
-func Info(format string, v ...interface{}) error {
+// Info logging:
+//
+// output informative status about system
+func Info(seq ...Message) error {
 	if global.info != nil {
-		return global.info.Output(2, fmt.Sprintf(format, v...))
+		return global.info.Output(2, Messages(seq).toString(INF))
 	}
 
 	return nil
 }
 
-/*
-
-Debug logging:
-output debug status about system
-*/
-func Debug(format string, v ...interface{}) error {
+// Debug logging:
+//
+// output debug status about system
+func Debug(seq ...Message) error {
 	if global.debug != nil {
-		return global.debug.Output(2, fmt.Sprintf(format, v...))
+		return global.debug.Output(2, Messages(seq).toString(DEB))
 	}
 
 	return nil
 }
 
-/*
-
-Note type annotates log message with semi-structured data
-*/
-type Note map[string]interface{}
-
-/*
-
-With returns contextual logger
-*/
-func With(note Note) Logger {
-	return newContext(note)
+// Groups sequence of messages as re-usable context
+func Context(seq ...Message) (msg Message) {
+	buf := strings.Builder{}
+	Messages(seq).toJSON(&buf)
+	msg.val = buf.String()
+	return
 }
 
-type context struct {
-	note string
+type Types interface {
+	string | []byte | int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64 | float32 | float64 | bool
 }
 
-func newContext(note Note) Logger {
-	return &context{note: toJSON(note)}
-}
-
-func toJSON(note Note) string {
-	var out strings.Builder
-
-	for key, val := range note {
-		out.WriteString(", ")
-		k, _ := json.Marshal(key)
-		out.Write(k)
-		out.WriteString(": ")
-		v, _ := json.Marshal(val)
-		out.Write(v)
+// Builds loggable Key/Val pair
+func Val[T Types](key string, val T) (msg Message) {
+	msg.key = escape(key)
+	switch v := any(val).(type) {
+	case string:
+		msg.val = escape(v)
+		msg.ext = `"`
+	case []byte:
+		msg.val = escape(string(v))
+		msg.ext = `"`
+	case int:
+		msg.val = strconv.FormatInt(int64(v), 10)
+	case int8:
+		msg.val = strconv.FormatInt(int64(v), 10)
+	case int16:
+		msg.val = strconv.FormatInt(int64(v), 10)
+	case int32:
+		msg.val = strconv.FormatInt(int64(v), 10)
+	case int64:
+		msg.val = strconv.FormatInt(v, 10)
+	case uint:
+		msg.val = strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		msg.val = strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		msg.val = strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		msg.val = strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		msg.val = strconv.FormatUint(uint64(v), 10)
+	case float32:
+		msg.val = strconv.FormatFloat(float64(v), 'g', -1, 32)
+	case float64:
+		msg.val = strconv.FormatFloat(v, 'g', -1, 64)
+	case bool:
+		msg.val = strconv.FormatBool(v)
 	}
-
-	return out.String()[2:]
+	return
 }
 
-func (log *context) With(note Note) Logger {
-	if len(log.note) != 0 {
-		return &context{note: log.note + ", " + toJSON(note)}
-	}
-
-	return &context{note: toJSON(note)}
+func Str(key string, val fmt.Stringer) (msg Message) {
+	msg.key = escape(key)
+	msg.val = escape(val.String())
+	msg.ext = `"`
+	return
 }
 
-func (log *context) sprintf(format string, v ...interface{}) string {
-	if len(log.note) == 0 {
-		return fmt.Sprintf(format, v...)
+func Fmt(key string, format string, v ...interface{}) (msg Message) {
+	msg.key = escape(key)
+	msg.ext = `"`
+
+	if len(v) == 0 {
+		msg.val = escape(format)
 	} else {
-		var out strings.Builder
-		out.WriteString("{ ")
-		out.WriteString(log.note)
-		out.WriteString(", \"message\": \"")
-		out.WriteString(fmt.Sprintf(format, v...))
-		out.WriteString("\" }")
-		return out.String()
+		msg.val = escape(fmt.Sprintf(format, v...))
 	}
+
+	return
 }
 
-/*
+func Msg(val string, v ...interface{}) (msg Message) {
+	msg.key = "msg"
+	msg.ext = `"`
 
-Emergency logging:
-system is unusable, panic execution of current routine/application,
-it is notpossible to gracefully terminate it.
-*/
-func (log *context) Emergency(format string, v ...interface{}) error {
-	if global.emergency != nil {
-		if err := global.emergency.Output(2, log.sprintf(format, v...)); err != nil {
-			return nil
-		}
-		panic(fmt.Errorf(format, v...))
+	if len(v) == 0 {
+		msg.val = escape(val)
+	} else {
+		msg.val = escape(fmt.Sprintf(val, v...))
 	}
 
-	return nil
-}
-
-/*
-
-Critical logging:
-system is failed, response actions must be taken immediately,
-the application is not able to execute correctly but still
-able to gracefully exit.
-*/
-func (log *context) Critical(format string, v ...interface{}) error {
-	if global.critical != nil {
-		return global.critical.Output(2, log.sprintf(format, v...))
-	}
-
-	return nil
-}
-
-/*
-
-Error logging:
-system is failed, unable to recover from error.
-The failure do not have global catastrophic impacts but
-local functionality is impaired, incorrect result is returned.
-*/
-func (log *context) Error(format string, v ...interface{}) error {
-	if global.err != nil {
-		return global.err.Output(2, log.sprintf(format, v...))
-	}
-
-	return nil
-}
-
-/*
-
-Warning logging:
-system is failed, unable to recover, degraded functionality.
-The failure is ignored and application still capable to deliver
-incomplete but correct results.
-*/
-func (log *context) Warning(format string, v ...interface{}) error {
-	if global.warning != nil {
-		return global.warning.Output(2, log.sprintf(format, v...))
-	}
-
-	return nil
-}
-
-/*
-
-Notice logging:
-system is failed, error is recovered, no impact.
-*/
-func (log *context) Notice(format string, v ...interface{}) error {
-	if global.notice != nil {
-		return global.notice.Output(2, log.sprintf(format, v...))
-	}
-
-	return nil
-}
-
-/*
-
-Info logging:
-output informative status about system
-*/
-func (log *context) Info(format string, v ...interface{}) error {
-	if global.info != nil {
-		return global.info.Output(2, log.sprintf(format, v...))
-	}
-
-	return nil
-}
-
-/*
-
-Debug logging:
-output debug status about system
-*/
-func (log *context) Debug(format string, v ...interface{}) error {
-	if global.debug != nil {
-		return global.debug.Output(2, log.sprintf(format, v...))
-	}
-
-	return nil
+	return
 }

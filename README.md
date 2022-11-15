@@ -40,8 +40,8 @@ logger is a simple logging utility for Golang application. The library implement
 The library outputs log messages in the well-defined format, using UTC date and times and giving ability to annotate the message with JSON context. The logger always output filename and line of the log statement to facilitate further analysis
 
 ```
-2020/12/01 20:30:40 main.go:11: [level] some message
-2020/12/01 20:30:40 main.go:11: [level] {"json": "context", "message": "some message"}
+2020/12/01 20:30:40 main.go:11: [level] {"lvl": "level", "message": "some message"}
+2020/12/01 20:30:40 main.go:11: [level] {"lvl": "level", "json": "context", "message": "some message"}
 ```
 
 It inherits best practices of telecom application and defines 7 levels of fine grained logging:
@@ -64,8 +64,18 @@ Import library and start logging
 ```go
 import "github.com/fogfish/logger"
 
-logger.Notice("Some message")
-logger.Error("Some formatted message %d", 5)
+// 2022/11/15 06:27:47 main.go:12: [see] {"lvl": "ntc", "msg": "Some message"}
+logger.Notice(logger.Msg("Some message"))
+
+// 2022/11/15 06:27:47 main.go:14: [err] {"lvl": "err", "msg": "Some formatted message 5"}
+logger.Error(logger.Msg("Some formatted message %d", 5))
+
+// 2022/11/15 06:27:47 main.go:16: [deb] {"lvl": "deb", "target": "foo", "source": "bar", "msg": "Some message"}
+logger.Debug(
+  logger.Val("target", "foo"),
+  logger.Val("source", "bar"),
+  logger.Msg("Some message"),
+)
 ```
 
 ### Configuration
@@ -84,20 +94,29 @@ export CONFIG_LOGGER_LEVEL=warning
 
 ### Annotate events
 
-Often, it is usable to annotate log messages with semi-structured data (e.g. JSON). 
+The library always annotates log messages with semi-structured data (e.g. JSON). 
 
 ```go
 /*
 
 Outputs
 
-2020/12/01 20:30:40 main.go:11: [level] { "foo": "bar", "bar": 1, "message": "some message" }
+2020/12/01 20:30:40 main.go:11: [wrn] {"lvl": "wrn", "foo": "bar", "bar": 1, "message": "some message"}
 
 */
-logger.With(logger.Note{
-  "foo": "bar",
-  "bar": 1
-}).Warning("some message")
+logger.Warning(
+  logger.Val("foo", "bar"),
+  logger.Val("bar", 1),
+  logger.Msg("some message"),
+)
+
+// make logging context reusable
+ctx := logger.Context(
+  logger.Val("foo", "bar"),
+  logger.Val("bar", 1),
+)
+
+logger.Warning(ctx, logger.Msg("some message"))
 ```
 
 ### AWS CloudWatch
@@ -106,7 +125,7 @@ The logger output events in the format compatible with AWS CloudWatch: each log 
 
 ```
 fields @timestamp, @message
-| filter foo = "bar" and @message like /warning/
+| filter lvl = "wrn" and foo = "bar"
 | sort @timestamp desc
 | limit 20
 ```

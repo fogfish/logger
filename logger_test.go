@@ -17,34 +17,34 @@ import (
 	"github.com/fogfish/logger"
 )
 
-func testLogger(loglevel string, logf func(format string, v ...interface{}) error) bool {
+func testLogger(loglevel string, logf func(seq ...logger.Message) error) bool {
 	var buf bytes.Buffer
 
 	logger.Config(loglevel, &buf)
-	if err := logf("foobar %d", 1); err != nil {
+	if err := logf(logger.Val("foobar", 1)); err != nil {
 		panic(err)
 	}
 
-	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:24: ."+loglevel+". foobar 1", buf.Bytes())
+	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:24: ."+loglevel+". \\{\"lvl\": \""+loglevel+"\", \"foobar\": 1\\}", buf.Bytes())
 
 	return matched
 }
 
 func TestGlobalLogger(t *testing.T) {
 	it.Ok(t).
-		IfTrue(testLogger(logger.CRITICAL, logger.Critical)).
-		IfTrue(testLogger(logger.ERROR, logger.Error)).
-		IfTrue(testLogger(logger.WARNING, logger.Warning)).
-		IfTrue(testLogger(logger.NOTICE, logger.Notice)).
-		IfTrue(testLogger(logger.INFO, logger.Info)).
-		IfTrue(testLogger(logger.DEBUG, logger.Debug))
+		IfTrue(testLogger(logger.CRT, logger.Critical)).
+		IfTrue(testLogger(logger.ERR, logger.Error)).
+		IfTrue(testLogger(logger.WRN, logger.Warning)).
+		IfTrue(testLogger(logger.NTC, logger.Notice)).
+		IfTrue(testLogger(logger.INF, logger.Info)).
+		IfTrue(testLogger(logger.DEB, logger.Debug))
 }
 
-func testLoggerSilent(loglevel string, logf func(format string, v ...interface{}) error) bool {
+func testLoggerSilent(loglevel string, logf func(seq ...logger.Message) error) bool {
 	var buf bytes.Buffer
 
 	logger.Config(loglevel, &buf)
-	if err := logf("foobar %d", 1); err != nil {
+	if err := logf(logger.Val("foobar", 1)); err != nil {
 		panic(err)
 	}
 
@@ -111,50 +111,42 @@ func TestGlobalLoggerSilentCritical(t *testing.T) {
 		IfTrue(testLoggerSilent(logger.EMERGENCY, logger.Debug))
 }
 
-func testLoggerWith(loglevel string, logf func(format string, v ...interface{}) error) bool {
+func testLoggerWith(loglevel string, logf func(seq ...logger.Message) error) bool {
 	var buf bytes.Buffer
 
 	logger.Config(loglevel, &buf)
-	if err := logf("foobar %d", 1); err != nil {
+	if err := logf(logger.Val("foobar", 1), logger.Msg("baz")); err != nil {
 		panic(err)
 	}
 
-	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:118: ."+loglevel+". \\{[^}]+\"message\": \"foobar 1\" \\}", buf.Bytes())
-
+	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:118: ."+loglevel+". \\{\"lvl\": \""+loglevel+"\", \"foobar\": 1, \"msg\": \"baz\"\\}", buf.Bytes())
 	return matched
 }
 
 func TestLoggerWith(t *testing.T) {
-	l := logger.With(logger.Note{
-		"foo": "bar",
-		"bar": 1,
-	})
-
 	it.Ok(t).
-		IfTrue(testLoggerWith(logger.CRITICAL, l.Critical)).
-		IfTrue(testLoggerWith(logger.ERROR, l.Error)).
-		IfTrue(testLoggerWith(logger.WARNING, l.Warning)).
-		IfTrue(testLoggerWith(logger.NOTICE, l.Notice)).
-		IfTrue(testLoggerWith(logger.INFO, l.Info)).
-		IfTrue(testLoggerWith(logger.DEBUG, l.Debug))
+		IfTrue(testLoggerWith(logger.CRT, logger.Critical)).
+		IfTrue(testLoggerWith(logger.ERR, logger.Error)).
+		IfTrue(testLoggerWith(logger.WRN, logger.Warning)).
+		IfTrue(testLoggerWith(logger.NTC, logger.Notice)).
+		IfTrue(testLoggerWith(logger.INF, logger.Info)).
+		IfTrue(testLoggerWith(logger.DEB, logger.Debug))
 }
 
-func TestLoggerWithMultiple(t *testing.T) {
-	a := logger.With(logger.Note{"foo": "bar"})
-	b := a.With(logger.Note{"bar": 1})
+type null struct{}
 
-	var buf bytes.Buffer
-	logger.Config(logger.DEBUG, &buf)
+func (null) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
 
-	err := b.Debug("some text")
-	matched, _ := regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:149: .debug. \\{ \"foo\": \"bar\", \"bar\": 1, \"message\": \"some text\" \\}", buf.Bytes())
-	it.Ok(t).
-		IfTrue(matched).
-		IfNil(err)
+func BenchmarkLogger(b *testing.B) {
+	logger.Config(logger.DEBUG, &null{})
+	b.ReportAllocs()
 
-	err = a.Debug("some text")
-	matched, _ = regexp.Match("\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} logger_test.go:155: .debug. \\{ \"foo\": \"bar\", \"message\": \"some text\" \\}", buf.Bytes())
-	it.Ok(t).
-		IfTrue(matched).
-		IfNil(err)
+	for i := 0; i < b.N; i++ {
+		logger.Debug(
+			logger.Val("key", string([]byte{0x00, 0x00})),
+			logger.Val("key", "xxx"),
+		)
+	}
 }
