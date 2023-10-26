@@ -1,6 +1,6 @@
 <p align="center">
   <h3 align="center">logger</h3>
-  <p align="center"><strong>logging utility for Golang</strong></p>
+  <p align="center"><strong>logging config for Golang's slog</strong></p>
 
   <p align="center">
     <!-- Documentation -->
@@ -9,115 +9,120 @@
     </a>
     <!-- Build Status  -->
     <a href="https://github.com/fogfish/logger/actions/">
-      <img src="https://github.com/fogfish/logger/workflows/build/badge.svg" />
+      <img src="https://github.com/fogfish/logger/workflows/test/badge.svg" />
     </a>
     <!-- GitHub -->
     <a href="http://github.com/fogfish/logger">
       <img src="https://img.shields.io/github/last-commit/fogfish/logger.svg" />
-    </a>
-    <!-- Coverage -->
-    <a href="https://coveralls.io/github/fogfish/logger?branch=main">
-      <img src="https://coveralls.io/repos/github/fogfish/logger/badge.svg?branch=main" />
-    </a>
-    <!-- Go Card -->
-    <a href="https://goreportcard.com/report/github.com/fogfish/logger">
-      <img src="https://goreportcard.com/badge/github.com/fogfish/logger" />
-    </a>
-    <!-- Maintainability -->
-    <a href="https://codeclimate.com/github/fogfish/logger/maintainability">
-      <img src="https://api.codeclimate.com/v1/badges/df33ca9c2f9661803f78/maintainability" />
     </a>
   </p>
 </p>
 
 ---
 
-logger is a simple logging utility for Golang application. The library implements finer grained logging level, outputs log messages to standard streams. Easy to use for serverless application development (e.g. logging to AWS CloudWatch).
+logger is a configuration for Golang [slog](https://pkg.go.dev/log/slog) developed for easy to use within serverless applications (e.g. logging to AWS CloudWatch).
 
 
 ## Inspiration
 
-The library outputs log messages in the well-defined format, using UTC date and times and giving ability to annotate the message with JSON context. The logger always output filename and line of the log statement to facilitate further analysis
+The library outputs log messages as JSON object. The configuration enforces output filename and line of the log statement to facilitate further analysis.
 
 ```
-2020/12/01 20:30:40 main.go:11: [level] {"lvl": "level", "message": "some message"}
-2020/12/01 20:30:40 main.go:11: [level] {"lvl": "level", "json": "context", "message": "some message"}
+2023-10-26 19:12:44.709 +0300 EEST:
+{
+    "level": "INFO",
+    "source": {
+        "function": "main.example",
+        "file": "example.go",
+        "line": 143
+    },
+    "msg": "some output",
+    "key": "val",
+    ...
+}
 ```
 
-It inherits best practices of telecom application and defines 7 levels of fine grained logging:
+The configuration inherits best practices of telecom application, it enhances existing `Debug`, `Info`, `Warn` and `Error` levels with 3 additional, making fine grained logging with 7 levels:
 
-1. `emergency`: system is unusable, panic execution of current routine or application, it is not possible to gracefully terminate it.
-2. `critical`: system is failed, response actions must be taken immediately, the application is not able to execute correctly but still able to gracefully exit.
-3. `error`: system is failed, unable to recover from error. The failure do not have global catastrophic impacts but local functionality is impaired, incorrect result is returned.
-4. `warning`: system is failed, unable to recover, degraded functionality. The failure is ignored and application still capable to deliver incomplete but correct results.
-5. `notice`: system is failed, error is recovered, no impact.
-6. `info`: output informative status about system.
-7. `debug`: output debug status about system.
+1. `EMERGENCY`, `EMR`: system is unusable, panic execution of current routine or application, it is not possible to gracefully terminate it.
+2. `CRITICAL`, `CRT`: system is failed, response actions must be taken immediately, the application is not able to execute correctly but still able to gracefully exit.
+3. `ERROR`, `ERR`: system is failed, unable to recover from error. The failure do not have global catastrophic impacts but local functionality is impaired, incorrect result is returned.
+4. `WARN`, `WRN`: system is failed, unable to recover, degraded functionality. The failure is ignored and application still capable to deliver incomplete but correct results.
+5. `NOTICE`, `NTC`: system is failed, error is recovered, no impact.
+6. `INFO`, `INF`: output informative status about system.
+7. `DEBUG`, `DEB`: output debug status about system.
 
 
 ## Getting started
 
-The latest version of the library is available at `main` branch of this repository. All development, including new features and bug fixes, take place on the `main` branch using forking and pull requests as described in contribution guidelines. The stable version is available via Golang modules.
+The latest version of the configuration is available at `main` branch of this repository. All development, including new features and bug fixes, take place on the `main` branch using forking and pull requests as described in contribution guidelines. The stable version is available via Golang modules.
 
-Import library and start logging
+Import configuration and start logging using `slog` api.
 
 ```go
-import "github.com/fogfish/logger"
+import (
+	"log/slog"
 
-// 2022/11/15 06:27:47 main.go:12: [see] {"lvl": "ntc", "msg": "Some message"}
-logger.Notice(logger.Msg("Some message"))
-
-// 2022/11/15 06:27:47 main.go:14: [err] {"lvl": "err", "msg": "Some formatted message 5"}
-logger.Error(logger.Msg("Some formatted message %d", 5))
-
-// 2022/11/15 06:27:47 main.go:16: [deb] {"lvl": "deb", "target": "foo", "source": "bar", "msg": "Some message"}
-logger.Debug(
-  logger.Val("target", "foo"),
-  logger.Val("source", "bar"),
-  logger.Msg("Some message"),
+	_ "github.com/fogfish/logger/v3"
 )
+
+// 2023-10-26 19:12:44.709 +0300 EEST:
+//  {
+//    "level": "INFO",
+//    "source": {
+//      "function": "main.example",
+//      "file": "example.go",
+//      "line": 143
+//    },
+//    "msg": "some output",
+//    "key": "val",
+//    ...    
+//  }
+slog.Info("some message", "key", "val")
+```
+
+Use custom log levels if application requires more log levels
+
+```go
+import (
+	"log/slog"
+
+	log "github.com/fogfish/logger/v3"
+)
+
+slog.Log(context.Background(), log.EMERGENCY, "system emergency")
 ```
 
 ### Configuration
 
-The default configuration applies debug level logging, messages are emitted to standard error (`os.Stderr`). Use `logger.Config` to change either logging level or destination. 
+The default configuration is AWS CloudWatch friendly. It applies INFO level logging, disables timestamps and messages are emitted to standard error (`os.Stderr`). Use `logger.Config` to change either logging level or destination. 
 
 ```go
-logger.Config(logger.ERROR, os.Stderr)
+import (
+	"log/slog"
+
+	log "github.com/fogfish/logger/v3"
+)
+
+slog.SetDefault(
+	log.Config(
+    log.WithLogLevel(),
+		log.WithLogLevelFromEnv(),
+    log.WithWriter(),
+    log.WithShortLogLevel(),
+    log.WithTimestamp(),
+    log.WithFilePath(),
+    log.WithFileName(),
+	),
+)
 ```
 
-Use environment variable `CONFIG_LOGGER_LEVEL` to change log level of the application at runtime
+Use environment variable `CONFIG_LOG_LEVEL` to change log level of the application at runtime
 
 ```bash
-export CONFIG_LOGGER_LEVEL=warning
+export CONFIG_LOGGER_LEVEL=WARN
 ```
 
-### Annotate events
-
-The library always annotates log messages with semi-structured data (e.g. JSON). 
-
-```go
-/*
-
-Outputs
-
-2020/12/01 20:30:40 main.go:11: [wrn] {"lvl": "wrn", "foo": "bar", "bar": 1, "message": "some message"}
-
-*/
-logger.Warning(
-  logger.Val("foo", "bar"),
-  logger.Val("bar", 1),
-  logger.Msg("some message"),
-)
-
-// make logging context reusable
-ctx := logger.Context(
-  logger.Val("foo", "bar"),
-  logger.Val("bar", 1),
-)
-
-logger.Warning(ctx, logger.Msg("some message"))
-```
 
 ### AWS CloudWatch
 
@@ -125,7 +130,7 @@ The logger output events in the format compatible with AWS CloudWatch: each log 
 
 ```
 fields @timestamp, @message
-| filter lvl = "wrn" and foo = "bar"
+| filter level = "INFO" and foo = "bar"
 | sort @timestamp desc
 | limit 20
 ```
@@ -147,7 +152,6 @@ The build and testing process requires [Go](https://golang.org) version 1.16 or 
 ```bash
 git clone https://github.com/fogfish/logger
 cd logger
-go test
 ```
 
 ### commit message
