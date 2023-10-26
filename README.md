@@ -1,6 +1,6 @@
 <p align="center">
   <h3 align="center">logger</h3>
-  <p align="center"><strong>logging utility for Golang</strong></p>
+  <p align="center"><strong>logging config for Golang's slog</strong></p>
 
   <p align="center">
     <!-- Documentation -->
@@ -9,23 +9,11 @@
     </a>
     <!-- Build Status  -->
     <a href="https://github.com/fogfish/logger/actions/">
-      <img src="https://github.com/fogfish/logger/workflows/build/badge.svg" />
+      <img src="https://github.com/fogfish/logger/workflows/test/badge.svg" />
     </a>
     <!-- GitHub -->
     <a href="http://github.com/fogfish/logger">
       <img src="https://img.shields.io/github/last-commit/fogfish/logger.svg" />
-    </a>
-    <!-- Coverage -->
-    <a href="https://coveralls.io/github/fogfish/logger?branch=main">
-      <img src="https://coveralls.io/repos/github/fogfish/logger/badge.svg?branch=main" />
-    </a>
-    <!-- Go Card -->
-    <a href="https://goreportcard.com/report/github.com/fogfish/logger">
-      <img src="https://goreportcard.com/badge/github.com/fogfish/logger" />
-    </a>
-    <!-- Maintainability -->
-    <a href="https://codeclimate.com/github/fogfish/logger/maintainability">
-      <img src="https://api.codeclimate.com/v1/badges/df33ca9c2f9661803f78/maintainability" />
     </a>
   </p>
 </p>
