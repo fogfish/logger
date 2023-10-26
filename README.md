@@ -85,9 +85,9 @@ Use custom log levels if application requires more log levels
 
 ```go
 import (
-	"log/slog"
+  "log/slog"
 
-	log "github.com/fogfish/logger/v3"
+  log "github.com/fogfish/logger/v3"
 )
 
 slog.Log(context.Background(), log.EMERGENCY, "system emergency")
@@ -99,21 +99,21 @@ The default configuration is AWS CloudWatch friendly. It applies INFO level logg
 
 ```go
 import (
-	"log/slog"
+  "log/slog"
 
-	log "github.com/fogfish/logger/v3"
+  log "github.com/fogfish/logger/v3"
 )
 
 slog.SetDefault(
-	log.Config(
+  log.Config(
     log.WithLogLevel(),
-		log.WithLogLevelFromEnv(),
+    log.WithLogLevelFromEnv(),
     log.WithWriter(),
     log.WithShortLogLevel(),
     log.WithTimestamp(),
     log.WithFilePath(),
     log.WithFileName(),
-	),
+  ),
 )
 ```
 
