@@ -155,19 +155,27 @@ func (opts opts) fmt(groups []string, a slog.Attr) slog.Attr {
 			if len(parts) > 1 {
 				path = parts[1]
 			}
-
-			seq := strings.Split(path, string(filepath.Separator))
-			for i := 0; i < len(seq)-1; i++ {
-				if len(seq[i]) > 0 {
-					seq[i] = strings.ToLower(seq[i][0:1])
-				}
-			}
-			source.File = strings.Join(seq[0:len(seq)-1], ".") + "/" + seq[len(seq)-1]
+			source.File = shorten(path)
+			source.Function = shorten(source.Function)
 		}
 		return a
 	}
 
 	return a
+}
+
+func shorten(path string) string {
+	seq := strings.Split(path, string(filepath.Separator))
+	if len(seq) == 1 {
+		return path
+	}
+
+	for i := 0; i < len(seq)-1; i++ {
+		if len(seq[i]) > 0 {
+			seq[i] = strings.ToLower(seq[i][0:1])
+		}
+	}
+	return strings.Join(seq[0:len(seq)-1], ".") + "/" + seq[len(seq)-1]
 }
 
 // Config options for slog
