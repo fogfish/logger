@@ -15,12 +15,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/fogfish/logger/v3/internal/trie"
 )
 
 func init() {
+	// Config Optimal for logging of serverless with AWS Cloud Watch
 	slog.SetDefault(
-		Config(
+		New(
 			WithLogLevelFromEnv(),
+			WithLogLevel7(),
+			WithSourceShorten(),
+			WithoutTimestamp(),
+			WithLogLevelForModFromEnv(),
 		),
 	)
 }
@@ -63,7 +70,7 @@ const (
 )
 
 var (
-	shortLevel = map[slog.Leveler]string{
+	shortLevel = map[slog.Level]string{
 		EMERGENCY: "EMR",
 		CRITICAL:  "CRT",
 		ERROR:     "ERR",
@@ -73,7 +80,7 @@ var (
 		DEBUG:     "DEB",
 	}
 
-	longLevel = map[slog.Leveler]string{
+	longLevel = map[slog.Level]string{
 		EMERGENCY: "EMERGENCY",
 		CRITICAL:  "CRITICAL",
 		ERROR:     "ERROR",
@@ -94,92 +101,42 @@ var (
 	}
 )
 
+// combinator of attribute formatting
+type Attributes []func(groups []string, a slog.Attr) slog.Attr
+
+func (attrs Attributes) handle(groups []string, a slog.Attr) slog.Attr {
+	for _, f := range attrs {
+		a = f(groups, a)
+	}
+	return a
+}
+
 type opts struct {
-	writer       io.Writer
-	level        slog.Leveler
-	shortLevel   bool
-	noTimestamp  bool
-	filenameOnly bool
-	shortestPath bool
+	writer     io.Writer
+	level      slog.Leveler
+	attributes Attributes
+	addSource  bool
+	trie       *trie.Node
 }
 
 func defaultOpts() *opts {
 	return &opts{
-		writer:       os.Stdout,
-		level:        INFO,
-		shortLevel:   false,
-		noTimestamp:  true,
-		filenameOnly: false,
-		shortestPath: true,
+		writer:     os.Stdout,
+		level:      INFO,
+		attributes: Attributes{},
+		addSource:  false,
 	}
-}
-
-func (opts opts) fmt(groups []string, a slog.Attr) slog.Attr {
-	if a.Key == slog.LevelKey && opts.shortLevel {
-		lvl := a.Value.Any().(slog.Level)
-		if name, has := shortLevel[lvl]; has {
-			return slog.String(slog.LevelKey, name)
-		}
-	}
-
-	if a.Key == slog.LevelKey {
-		switch a.Value.Any() {
-		case EMERGENCY:
-			return slog.String(slog.LevelKey, longLevel[EMERGENCY])
-		case CRITICAL:
-			return slog.String(slog.LevelKey, longLevel[CRITICAL])
-		case NOTICE:
-			return slog.String(slog.LevelKey, longLevel[NOTICE])
-		default:
-			return a
-		}
-	}
-
-	if a.Key == slog.TimeKey && len(groups) == 0 && opts.noTimestamp {
-		return slog.Attr{}
-	}
-
-	if a.Key == slog.SourceKey && opts.filenameOnly {
-		source, _ := a.Value.Any().(*slog.Source)
-		if source != nil {
-			source.File = filepath.Base(source.File)
-		}
-		return a
-	}
-
-	if a.Key == slog.SourceKey && opts.shortestPath {
-		source, _ := a.Value.Any().(*slog.Source)
-		if source != nil {
-			parts := strings.Split(source.File, "go/src/")
-			path := parts[0]
-			if len(parts) > 1 {
-				path = parts[1]
-			}
-			source.File = shorten(path)
-			source.Function = shorten(source.Function)
-		}
-		return a
-	}
-
-	return a
-}
-
-func shorten(path string) string {
-	seq := strings.Split(path, string(filepath.Separator))
-	if len(seq) == 1 {
-		return path
-	}
-
-	for i := 0; i < len(seq)-1; i++ {
-		if len(seq[i]) > 0 {
-			seq[i] = strings.ToLower(seq[i][0:1])
-		}
-	}
-	return strings.Join(seq[0:len(seq)-1], ".") + "/" + seq[len(seq)-1]
 }
 
 // Config options for slog
 type Option func(*opts)
+
+// Config Log writer, default os.Stdout
+func WithWriter(w io.Writer) Option {
+	return func(o *opts) {
+		o.writer = w
+	}
+}
 
 // Config Log Level, default INFO
 func WithLogLevel(level slog.Leveler) Option {
@@ -202,57 +159,190 @@ func WithLogLevelFromEnv() Option {
 	}
 }
 
-// Config Log writer, default os.Stdout
-func WithWriter(w io.Writer) Option {
+// WithLevel7 enables from DEBUG to EMERGENCY levels
+func WithLogLevel7() Option {
 	return func(o *opts) {
-		o.writer = w
+		o.attributes = append(o.attributes, attrLogLevel7)
 	}
+}
+
+func attrLogLevel7(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.LevelKey {
+		switch a.Value.Any() {
+		case EMERGENCY:
+			return slog.String(slog.LevelKey, longLevel[EMERGENCY])
+		case CRITICAL:
+			return slog.String(slog.LevelKey, longLevel[CRITICAL])
+		case NOTICE:
+			return slog.String(slog.LevelKey, longLevel[NOTICE])
+		default:
+			return a
+		}
+	}
+
+	return a
 }
 
 // Config Log Level to be 3 letters only
-func WithShortLogLevel() Option {
+func WithLogLevelShorten() Option {
 	return func(o *opts) {
-		o.shortLevel = true
+		o.attributes = append(o.attributes, attrLogLevelShorten)
 	}
 }
 
-// Enables timestamp in the log messages
-func WithTimestamp() Option {
+func attrLogLevelShorten(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.LevelKey {
+		lvl := a.Value.Any().(slog.Level)
+		if name, has := shortLevel[lvl]; has {
+			return slog.String(slog.LevelKey, name)
+		}
+	}
+	return a
+}
+
+// Config Log Levels per module
+func WithLogLevelForMod(mods map[string]slog.Level) Option {
 	return func(o *opts) {
-		o.noTimestamp = false
+		o.trie = trie.New()
+		for mod, lvl := range mods {
+			o.trie.Append(mod, lvl)
+		}
 	}
 }
 
-// Logs absolute path for the source file
-func WithFilePath() Option {
+// Config Log Levels per module from env variables CONFIG_LOG_LEVEL_{NAME}
+//
+// CONFIG_LOG_LEVEL_DEBUG=github.com/fogfish/logger/*:github.com/your/app
+func WithLogLevelForModFromEnv() Option {
 	return func(o *opts) {
-		o.filenameOnly = false
-		o.shortestPath = false
+		root := trie.New()
+		for lvl, name := range longLevel {
+			for _, mod := range fromEnvMods("CONFIG_LOG_LEVEL_" + name) {
+				root.Append(mod, lvl)
+			}
+		}
+
+		if len(root.Heir) != 0 {
+			o.trie = root
+		}
 	}
+}
+
+func fromEnvMods(key string) []string {
+	value, defined := os.LookupEnv(key)
+	if !defined {
+		return nil
+	}
+
+	return strings.Split(value, ":")
+}
+
+// Exclude timestamp, required by CloudWatch
+func WithoutTimestamp() Option {
+	return func(o *opts) {
+		o.attributes = append(o.attributes, attrNoTimestamp)
+	}
+}
+
+func attrNoTimestamp(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.TimeKey && len(groups) == 0 {
+		return slog.Attr{}
+	}
+
+	return a
 }
 
 // Logs file name of the source file
-func WithFileName() Option {
+func WithSourceFileName() Option {
 	return func(o *opts) {
-		o.filenameOnly = true
-		o.shortestPath = false
+		o.addSource = true
+		o.attributes = append(o.attributes, attrSourceFileName)
 	}
 }
 
-// Config logger
-func Config(opts ...Option) *slog.Logger {
+func attrSourceFileName(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.SourceKey {
+		source, _ := a.Value.Any().(*slog.Source)
+		if source != nil {
+			source.File = filepath.Base(source.File)
+		}
+	}
+
+	return a
+}
+
+// Shorten Source file to letters only
+func WithSourceShorten() Option {
+	return func(o *opts) {
+		o.addSource = true
+		o.attributes = append(o.attributes, attrSourceShorten)
+	}
+}
+
+func attrSourceShorten(groups []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.SourceKey {
+		source, _ := a.Value.Any().(*slog.Source)
+		if source != nil {
+			parts := strings.Split(source.File, "go/src/")
+			path := parts[0]
+			if len(parts) > 1 {
+				path = parts[1]
+			}
+			source.File = shorten(path)
+			source.Function = shorten(source.Function)
+		}
+	}
+
+	return a
+}
+
+func shorten(path string) string {
+	seq := strings.Split(path, string(filepath.Separator))
+	if len(seq) == 1 {
+		return path
+	}
+
+	for i := 0; i < len(seq)-1; i++ {
+		if len(seq[i]) > 0 {
+			seq[i] = strings.ToLower(seq[i][0:1])
+		}
+	}
+	return strings.Join(seq[0:len(seq)-1], ".") + "/" + seq[len(seq)-1]
+}
+
+// Enable logging of source file
+func WithSource() Option {
+	return func(o *opts) {
+		o.addSource = true
+	}
+}
+
+// Create New Logger
+func New(opts ...Option) *slog.Logger {
+	return slog.New(NewJSONHandler(opts...))
+}
+
+// Create's new handler
+func NewJSONHandler(opts ...Option) slog.Handler {
 	config := defaultOpts()
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	return slog.New(
-		slog.NewJSONHandler(os.Stdout,
-			&slog.HandlerOptions{
-				AddSource:   true,
-				Level:       slog.LevelDebug,
-				ReplaceAttr: config.fmt,
-			},
-		),
+	h := slog.NewJSONHandler(config.writer,
+		&slog.HandlerOptions{
+			AddSource:   config.addSource,
+			Level:       config.level,
+			ReplaceAttr: config.attributes.handle,
+		},
 	)
+
+	if config.trie == nil {
+		return h
+	}
+
+	return &handler{
+		Handler: h,
+		trie:    config.trie,
+	}
 }
