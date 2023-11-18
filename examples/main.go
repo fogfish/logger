@@ -16,7 +16,8 @@ import (
 )
 
 func main() {
-	slog.Info("some message", "key", "val")
+	slog.Debug("debug message", "key", "val")
+	slog.Info("info message", "key", "val")
 
 	slog.Log(context.Background(), log.EMERGENCY, "system emergency")
 }

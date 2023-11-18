@@ -57,7 +57,7 @@ The configuration inherits best practices of telecom application, it enhances ex
 
 The latest version of the configuration is available at `main` branch of this repository. All development, including new features and bug fixes, take place on the `main` branch using forking and pull requests as described in contribution guidelines. The stable version is available via Golang modules.
 
-Import configuration and start logging using `slog` api.
+Import configuration and start logging using `slog` api. The default config is optimized for logging within Serverless application.
 
 ```go
 import (
@@ -95,7 +95,7 @@ slog.Log(context.Background(), log.EMERGENCY, "system emergency")
 
 ### Configuration
 
-The default configuration is AWS CloudWatch friendly. It applies INFO level logging, disables timestamps and messages are emitted to standard error (`os.Stderr`). Use `logger.Config` to change either logging level or destination. 
+The default configuration is AWS CloudWatch friendly. It applies INFO level logging, disables timestamps and messages are emitted to standard error (`os.Stderr`). Use `logger.New` to create custom logger config. 
 
 ```go
 import (
@@ -105,17 +105,23 @@ import (
 )
 
 slog.SetDefault(
-  log.Config(
+  log.New(
+    log.WithWriter(),
     log.WithLogLevel(),
     log.WithLogLevelFromEnv(),
-    log.WithWriter(),
-    log.WithShortLogLevel(),
-    log.WithTimestamp(),
-    log.WithFilePath(),
-    log.WithFileName(),
+    log.WithLogLevel7(),
+    log.WithLogLevelShorten(),
+    log.WithLogLevelForMod(),
+    log.WithLogLevelForModFromEnv(),
+    log.WithoutTimestamp(),
+    log.WithSourceFileName(),
+    log.WithSourceShorten(),
+    log.WithSource(),
   ),
 )
 ```
+
+#### Config Log Level from Env
 
 Use environment variable `CONFIG_LOG_LEVEL` to change log level of the application at runtime
 
@@ -123,6 +129,36 @@ Use environment variable `CONFIG_LOG_LEVEL` to change log level of the applicati
 export CONFIG_LOGGER_LEVEL=WARN
 ```
 
+### Enable DEBUG for single module 
+
+The logger allows to define a log level per module. It either explicitly defined via config option or environment variables. The logger uses each string as prefix to match it against source code path:
+* `github.com/fogfish/logger/logger.go` defines log level for single file
+* `github.com/fogfish/logger` defines log level for entire module
+* `github.com/fogfish` defines log level for all modules by user
+
+```go
+import (
+  "log/slog"
+
+  log "github.com/fogfish/logger/v3"
+)
+
+slog.SetDefault(
+  log.New(
+    log.WithLogLevelForMod(map[string]slog.Level{
+      "github.com/fogfish/logger": log.INFO,
+      "github.com/you/application": log.DEBUG,
+    }),
+  ),
+)
+```
+
+Use environment variable `CONFIG_LOG_LEVEL_{LEVEL_NAME}`
+
+```bash
+export CONFIG_LOG_LEVEL_DEBUG=github.com/you/application:github.com/
+export CONFIG_LOG_LEVEL_INFO=github.com/fogfish/logger
+```
 
 ### AWS CloudWatch
 
