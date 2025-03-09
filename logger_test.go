@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2021 Dmitry Kolesnikov
+// Copyright (C) 2021 - 2025 Dmitry Kolesnikov
 //
 // This file may be modified and distributed under the terms
 // of the MIT license.  See the LICENSE file for details.
@@ -8,20 +8,123 @@
 
 package logger
 
-import "testing"
+import (
+	"bytes"
+	"log/slog"
+	"strings"
+	"testing"
+)
 
-func TestShorten(t *testing.T) {
-	for in, expect := range map[string]string{
-		"afoo/bfoo/cfoo/def": "a.b.c/def",
-		"a/b/c/d":            "a.b.c/d",
-		"bfoo/cfoo/def":      "b.c/def",
-		"cfoo/def":           "c/def",
-		"def":                "def",
-		"main.main":          "main.main",
-		"github.com/fogfish/logger/internal/codec.(*CodecRaw).Process": "g.f.l.i/codec.(*CodecRaw).Process",
-	} {
-		if shorten(in) != expect {
-			t.Errorf("%s not shorten to %s", in, expect)
+func TestStdioLogger(t *testing.T) {
+	b := &bytes.Buffer{}
+	log := slog.New(NewStdioHandler(WithWriter(b), WithLogLevel(DEBUG)))
+
+	t.Run("Debug", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Debug("test")
+		txt := b.String()
+		if !strings.Contains(txt, "DEB") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
 		}
-	}
+	})
+
+	t.Run("Info", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Info("test")
+		txt := b.String()
+		if !strings.Contains(txt, "INF") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
+
+	t.Run("Warn", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Warn("test")
+		txt := b.String()
+		if !strings.Contains(txt, "WRN") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Error("test")
+		txt := b.String()
+		if !strings.Contains(txt, "ERR") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
+}
+
+func TestJSONLogger(t *testing.T) {
+	b := &bytes.Buffer{}
+	log := slog.New(NewJSONHandler(WithWriter(b), WithLogLevel(DEBUG)))
+
+	t.Run("Debug", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Debug("test")
+		txt := b.String()
+		if !strings.Contains(txt, "DEBUG") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
+
+	t.Run("Info", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Info("test")
+		txt := b.String()
+		if !strings.Contains(txt, "INFO") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
+
+	t.Run("Warn", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Warn("test")
+		txt := b.String()
+		if !strings.Contains(txt, "WARN") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		defer b.Reset()
+
+		log.Error("test")
+		txt := b.String()
+		if !strings.Contains(txt, "ERROR") ||
+			!strings.Contains(txt, "test") ||
+			!strings.Contains(txt, "source") ||
+			!strings.Contains(txt, "lggr") {
+			t.Errorf("unexpected log line %s", txt)
+		}
+	})
 }
