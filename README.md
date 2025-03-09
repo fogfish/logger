@@ -20,37 +20,47 @@
 
 ---
 
-logger is a configuration for Golang [slog](https://pkg.go.dev/log/slog) developed for easy to use within serverless applications (e.g. logging to AWS CloudWatch).
+`logger` is an opinionated configuration for Golang [slog](https://pkg.go.dev/log/slog) developed for easy to use within serverless applications, such as logging to AWS CloudWatch.
 
 
 ## Inspiration
 
-The library outputs log messages as JSON object. The configuration enforces output filename and line of the log statement to facilitate further analysis.
+The library enables 0-configuration for [slog](https://pkg.go.dev/log/slog) enabling two logging formats:
+* Log messages as JSON object compatible with CloudWatch for production.
+* Log messages as colored text and JSON for development
 
 ```
 2023-10-26 19:12:44.709 +0300 EEST:
 {
     "level": "INFO",
     "source": {
-        "function": "main.example",
-        "file": "example.go",
+        "function": "main.main",
+        "file": "gthb.fgfs.lggr.exmp/main.go",
         "line": 143
     },
-    "msg": "some output",
+    "msg": "informative status about system.",
     "key": "val",
     ...
 }
 ```
 
-The configuration inherits best practices of telecom application, it enhances existing `Debug`, `Info`, `Warn` and `Error` levels with 3 additional, making fine grained logging with 7 levels:
+```
+[14:06:54.030] INF informative status about system. {
+  "key": "val",
+  "source": {
+    "file": "gthb.fgfs.lggr.exmp/main.go",
+    "function": "main.main",
+    "line": 26
+  }
+}
+```
 
-1. `EMERGENCY`, `EMR`: system is unusable, panic execution of current routine or application, it is not possible to gracefully terminate it.
-2. `CRITICAL`, `CRT`: system is failed, response actions must be taken immediately, the application is not able to execute correctly but still able to gracefully exit.
-3. `ERROR`, `ERR`: system is failed, unable to recover from error. The failure do not have global catastrophic impacts but local functionality is impaired, incorrect result is returned.
-4. `WARN`, `WRN`: system is failed, unable to recover, degraded functionality. The failure is ignored and application still capable to deliver incomplete but correct results.
-5. `NOTICE`, `NTC`: system is failed, error is recovered, no impact.
-6. `INFO`, `INF`: output informative status about system.
-7. `DEBUG`, `DEB`: output debug status about system.
+Additionally, it provides several enhancements:
+* 7-level logging semantics for more precise error handling.
+* File name shortening for cleaner and more readable logs.
+* Module-based log level configuration for flexible logging control.
+* Configuration via environment variables for easy customization.
+* Built-in metrics for improved observability.
 
 
 ## Getting started
@@ -59,82 +69,125 @@ The latest version of the configuration is available at `main` branch of this re
 
 Import configuration and start logging using `slog` api. The default config is optimized for logging within Serverless application.
 
-```go
-import (
-	"log/slog"
-
-	_ "github.com/fogfish/logger/v3"
-)
-
-// 2023-10-26 19:12:44.709 +0300 EEST:
-//  {
-//    "level": "INFO",
-//    "source": {
-//      "function": "main.example",
-//      "file": "example.go",
-//      "line": 143
-//    },
-//    "msg": "some output",
-//    "key": "val",
-//    ...    
-//  }
-slog.Info("some message", "key", "val")
+```bash
+go get -u github.com/fogfish/logger/v3
 ```
 
-Use custom log levels if application requires more log levels
+- [Inspiration](#inspiration)
+- [Getting started](#getting-started)
+  - [Quick Start](#quick-start)
+  - [Extended Logging Levels](#extended-logging-levels)
+  - [Configuration](#configuration)
+  - [Module-Based Log Level Configuration](#module-based-log-level-configuration)
+  - [AWS CloudWatch](#aws-cloudwatch)
+  - [Observability metrics](#observability-metrics)
+- [How To Contribute](#how-to-contribute)
+  - [commit message](#commit-message)
+  - [bugs](#bugs)
+- [License](#license)
+
+
+### Quick Start
 
 ```go
+package main
+
 import (
+  "context"
   "log/slog"
 
   log "github.com/fogfish/logger/v3"
 )
 
-slog.Log(context.Background(), log.EMERGENCY, "system emergency")
+func main() {
+  slog.SetDefault(log.New())
+
+  slog.Info("informative status about system.")
+  slog.Warn("system is failed, unable to recover, degraded functionality.")
+	slog.Error("system is failed, unable to recover from error.")
+}
+```
+
+### Extended Logging Levels 
+
+The `logger` library supplies configuration follows best practices from telecom applications, enhancing the standard `Debug`, `Info`, `Warn`, and `Error` levels with three additional levels. This provides fine-grained control over logging, resulting in seven distinct levels for correct error handling: 
+1. `EMERGENCY` (`EMR`) – The system is unusable. A panic occurs, and it is impossible to gracefully terminate the application.
+2. `CRITICAL` (`CRT`) – The system has failed and requires immediate action. The application cannot function correctly but can still exit gracefully.
+3. `ERROR` (`ERR`) – A failure has occurred, and recovery is not possible. While the issue does not have catastrophic global effects, local functionality is impaired, leading to incorrect results.
+4. `WARN` (`WRN`) – A failure has occurred, and recovery is not possible. However, the system continues operating in a degraded state, delivering incomplete but correct results.
+5. `NOTICE` (`NTC`) – A failure occurred but was successfully recovered, with no lasting impact on the system.
+6. `INFO` (`INF`) – Provides informational updates on the system’s status.
+7. `DEBUG` (`DEB`) – Outputs detailed debugging information for troubleshooting.
+
+This structured logging approach ensures clear categorization of system states, making it easier to detect, react to, and diagnose issues in complex applications. 
+
+The faster way apply these levels is raw `slog.Log` function and standartized constants:  
+
+```go
+import (
+  log "github.com/fogfish/logger/v3"
+)
+
+slog.Log(context.Background(), log.DEBUG, "...")
+slog.Log(context.Background(), log.INFO, "...")
+slog.Log(context.Background(), log.NOTICE, "...")
+slog.Log(context.Background(), log.WARN, "...")
+slog.Log(context.Background(), log.ERROR, "...")
+slog.Log(context.Background(), log.CRITICAL, "...")
+slog.Log(context.Background(), log.EMERGENCY, "...")
+```
+
+Alternatively, module `xlog` provides variants of these functions:
+
+```go
+import (
+  "github.com/fogfish/logger/x/xlog"
+)
+
+xlog.Notice("...")
+xlog.Warn("...", err)
+xlog.Error("...", err)
+xlog.Critical("...", err)
+xlog.Emergency("...", err)
 ```
 
 ### Configuration
 
-The default configuration is AWS CloudWatch friendly. It applies INFO level logging, disables timestamps and messages are emitted to standard error (`os.Stderr`). Use `logger.New` to create custom logger config. 
+The typical configuration is following:
 
 ```go
 import (
   "log/slog"
-
   log "github.com/fogfish/logger/v3"
 )
 
-slog.SetDefault(
-  log.New(
-    log.WithWriter(),
-    log.WithLogLevel(),
-    log.WithLogLevelFromEnv(),
-    log.WithLogLevel7(),
-    log.WithLogLevelShorten(),
-    log.WithLogLevelForMod(),
-    log.WithLogLevelForModFromEnv(),
-    log.WithoutTimestamp(),
-    log.WithSourceFileName(),
-    log.WithSourceShorten(),
-    log.WithSource(),
-  ),
-)
+slog.SetDefault(log.New())
 ```
 
-#### Config Log Level from Env
+The default configuration works out-of-the-box, automatically adapting to the runtime environment. Adjust it Using functional option pattern, see all configuration options and presets [here](./options.go).
 
-Use environment variable `CONFIG_LOG_LEVEL` to change log level of the application at runtime
+The default log level is `INFO` and log messages are emitted to standard error (`os.Stderr`). Use environment variable `CONFIG_LOG_LEVEL` to change log level of the application at runtime:
 
 ```bash
 export CONFIG_LOGGER_LEVEL=WARN
 ```
 
-### Enable DEBUG for single module 
+Note: the environemnt configuration is case sensitive, all caps is required. 
 
-The logger allows to define a log level per module. It either explicitly defined via config option or environment variables. The logger uses each string as prefix to match it against source code path:
-* `github.com/fogfish/logger/logger.go` defines log level for single file
-* `github.com/fogfish/logger` defines log level for entire module
-* `github.com/fogfish` defines log level for all modules by user
+
+### Module-Based Log Level Configuration
+
+The logger allows you to define log levels for different modules with flexible granularity. Log levels can be set explicitly using configuration options or environment variables.
+
+The logger uses prefix matching to determine the appropriate log level based on the source code path:
+
+**Per File**: A log level defined for a specific file (e.g., `github.com/fogfish/logger/logger.go`) applies only to that file.
+
+**Per Module**: A log level set for a module (e.g., `github.com/fogfish/logger`) applies to all files within that module.
+
+**Per Namespace**: A log level defined at a higher level (e.g., `github.com/fogfish`) applies to all modules under that namespace.
+
+You either do explicit configuration using the config option
 
 ```go
 import (
@@ -146,19 +199,20 @@ import (
 slog.SetDefault(
   log.New(
     log.WithLogLevelForMod(map[string]slog.Level{
-      "github.com/fogfish/logger": log.INFO,
+      "github.com/fogfish/logger":  log.INFO,
       "github.com/you/application": log.DEBUG,
     }),
   ),
 )
 ```
 
-Use environment variable `CONFIG_LOG_LEVEL_{LEVEL_NAME}`
+Or, using environment variable `CONFIG_LOG_LEVEL_{LEVEL_NAME}`
 
 ```bash
 export CONFIG_LOG_LEVEL_DEBUG=github.com/you/application:github.com/
 export CONFIG_LOG_LEVEL_INFO=github.com/fogfish/logger
 ```
+
 
 ### AWS CloudWatch
 
@@ -169,6 +223,37 @@ fields @timestamp, @message
 | filter level = "INFO" and foo = "bar"
 | sort @timestamp desc
 | limit 20
+```
+
+### Observability metrics
+
+Logging **duration** of the function
+
+```go
+func do() {
+  defer slog.Info("done something", slog.Any("duration", xlog.SinceNow()))
+  // ...
+}
+```
+
+Logging **execution rate** of the code block.
+
+```go
+func do() {
+  ops := xlog.PerSecondNow()
+  defer slog.Info("done something", slog.Any("op/sec", ops))
+  // ops.Acc++
+}
+```
+
+Logging **demand** of the code block
+
+```go
+func do() {
+  ops := xlog.MillisecondOpNow()
+  defer slog.Info("done something", slog.Any("op/sec", ops))
+  // ops.Acc++
+}
 ```
 
 ## How To Contribute
