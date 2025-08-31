@@ -22,7 +22,7 @@ var (
 	Console = []Option{
 		func(o *opts) { o.attributes = append(o.attributes, attrLogLevel7Shorten(true)) },
 		WithTimeFormat("[15:04:05.000]"),
-		WithLogLevel(INFO),
+		WithLogLevel(NOTICE),
 		WithLogLevelFromEnv(),
 		WithSourceShorten(),
 		WithLogLevelForModFromEnv(),
