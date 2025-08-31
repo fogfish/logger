@@ -55,7 +55,11 @@ type modTrieHandler struct {
 	trie *trie.Node
 }
 
-func (h *modTrieHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *modTrieHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	// For module-based filtering, we need to allow the handler to process the record
+	// and make the filtering decision in Handle() where we have access to the source path
+	return true
+}
 
 func (h *modTrieHandler) Handle(ctx context.Context, r slog.Record) error {
 	if r.PC == 0 {
@@ -65,6 +69,7 @@ func (h *modTrieHandler) Handle(ctx context.Context, r slog.Record) error {
 	fs := runtime.CallersFrames([]uintptr{r.PC})
 	f, _ := fs.Next()
 
+	// TODO: "go/pkg/mod"
 	parts := strings.Split(f.File, "go/src/")
 	path := parts[0]
 	if len(parts) > 1 {
@@ -73,7 +78,18 @@ func (h *modTrieHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	_, n := h.trie.Lookup(path)
 
-	if len(n.Path) != 0 && n.Level <= r.Level {
+	// If a specific module rule is found, use that rule
+	if len(n.Path) != 0 {
+		if n.Level <= r.Level {
+			return h.Handler.Handle(ctx, r)
+		}
+		// Module rule found but level doesn't match, don't log
+		return nil
+	}
+
+	// No specific module rule found, fall back to default handler behavior
+	// But we need to check if the underlying handler would accept this level
+	if h.Handler.Enabled(ctx, r.Level) {
 		return h.Handler.Handle(ctx, r)
 	}
 
@@ -135,6 +151,11 @@ func (h *stdioHandler) Handle(ctx context.Context, r slog.Record) error {
 		return err
 	}
 
+	// If attrs is nil, it means the message was filtered out
+	if attrs == nil {
+		return nil
+	}
+
 	time := attrs["time"]
 
 	level := attrs["level"]
@@ -174,6 +195,11 @@ func (h *stdioHandler) computeAttrs(
 
 	if err := h.h.Handle(ctx, r); err != nil {
 		return nil, err
+	}
+
+	// If buffer is empty, it means the message was filtered out by modTrieHandler
+	if h.b.Len() == 0 {
+		return nil, nil
 	}
 
 	var attrs map[string]any
