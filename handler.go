@@ -69,8 +69,12 @@ func (h *modTrieHandler) Handle(ctx context.Context, r slog.Record) error {
 	fs := runtime.CallersFrames([]uintptr{r.PC})
 	f, _ := fs.Next()
 
+	fmt.Printf("==> %s\n", f.File)
+
+	// .hm.rnnr.wrk.lggr.lggr/logger_test.go
 	// TODO: "go/pkg/mod"
 	parts := strings.Split(f.File, "go/src/")
+	fmt.Printf("    %v\n", parts)
 	path := parts[0]
 	if len(parts) > 1 {
 		path = parts[1]
